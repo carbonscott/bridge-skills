@@ -12,13 +12,13 @@ To access remote files, use the `bridge` CLI instead of native tools (Read, Writ
 Always verify the session is alive before use:
 
 ```bash
-uv run ~/codes/cc-bridge/bridge status
+bridge status
 ```
 
 If it fails, start a session first:
 
 ```bash
-uv run ~/codes/cc-bridge/bridge-session start -- ssh <host> 'uv run ~/bridge-server --root-dir /path/to/project'
+bridge-session start -- ssh <host> 'uv run ~/bridge-server --root-dir /path/to/project'
 ```
 
 ## Command Reference
@@ -52,18 +52,18 @@ Run multiple bridge sessions simultaneously by giving each a name:
 
 ```bash
 # Start named sessions
-uv run ~/codes/cc-bridge/bridge-session start --name project-a -- ssh host 'uv run ~/bridge-server --root-dir /path/a'
-uv run ~/codes/cc-bridge/bridge-session start --name project-b -- ssh host 'uv run ~/bridge-server --root-dir /path/b'
+bridge-session start --name project-a -- ssh host 'uv run ~/bridge-server --root-dir /path/a'
+bridge-session start --name project-b -- ssh host 'uv run ~/bridge-server --root-dir /path/b'
 
 # Target a specific session
-uv run ~/codes/cc-bridge/bridge --session project-a read <path>
-uv run ~/codes/cc-bridge/bridge --session project-b bash "pwd"
+bridge --session project-a read <path>
+bridge --session project-b bash "pwd"
 
 # List all sessions
-uv run ~/codes/cc-bridge/bridge-session list
+bridge-session list
 
 # Stop a named session
-uv run ~/codes/cc-bridge/bridge-session stop project-a
+bridge-session stop project-a
 ```
 
 The default session (no `--name` / `--session`) is called `default`. Each session socket lives at `~/.bridge/<name>/session.sock`.

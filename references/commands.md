@@ -1,6 +1,6 @@
 # bridge CLI — Full Command Reference
 
-All commands run as: `uv run ~/codes/cc-bridge/bridge <subcommand> ...`
+All commands run as: `bridge <subcommand> ...`
 
 All remote paths are relative to `--root-dir` set when the bridge-session was started.
 
@@ -127,28 +127,28 @@ bridge edit <path> --editor nano       # override $EDITOR
 
 ```bash
 # Start the default session
-uv run ~/codes/cc-bridge/bridge-session start -- ssh <host> 'uv run ~/bridge-server --root-dir /path'
+bridge-session start -- ssh <host> 'uv run ~/bridge-server --root-dir /path'
 
 # Start a named session (multiple sessions simultaneously)
-uv run ~/codes/cc-bridge/bridge-session start --name myproject -- ssh <host> 'uv run ~/bridge-server --root-dir /path'
+bridge-session start --name myproject -- ssh <host> 'uv run ~/bridge-server --root-dir /path'
 
 # Run in foreground (useful for debugging)
-uv run ~/codes/cc-bridge/bridge-session start --foreground -- ssh <host> 'uv run ~/bridge-server --root-dir /path'
+bridge-session start --foreground -- ssh <host> 'uv run ~/bridge-server --root-dir /path'
 
 # Target a named session with any bridge command
-uv run ~/codes/cc-bridge/bridge --session myproject read <path>
-uv run ~/codes/cc-bridge/bridge --session myproject bash "pwd"
+bridge --session myproject read <path>
+bridge --session myproject bash "pwd"
 
 # List all sessions
-uv run ~/codes/cc-bridge/bridge-session list
+bridge-session list
 
 # Stop a session (positional name arg, defaults to 'default')
-uv run ~/codes/cc-bridge/bridge-session stop
-uv run ~/codes/cc-bridge/bridge-session stop myproject
+bridge-session stop
+bridge-session stop myproject
 
 # Check status
-uv run ~/codes/cc-bridge/bridge status
-uv run ~/codes/cc-bridge/bridge --session myproject status
+bridge status
+bridge --session myproject status
 ```
 
 Each session socket lives at `~/.bridge/<name>/session.sock` (e.g. `~/.bridge/default/session.sock`).
