@@ -17,6 +17,8 @@ bridge read <path> --offset 100        # start from line 100 (0-based)
 bridge read <path> --offset 100 --limit 50  # lines 100-149
 ```
 
+**When to use `--offset` / `--limit`:** large files consume context window space on read. Prefer narrow windows — locate with `bridge grep` or `bridge bash "rg ..."` first, then read just the relevant range (e.g. `--offset 500 --limit 100`). Use `bridge bash "wc -l <path>"` to size up an unknown file.
+
 **To get raw content without line numbers**, use bash instead:
 ```bash
 bridge bash "cat <path>"
@@ -53,19 +55,25 @@ Run a shell command on the remote host. CWD is the `--root-dir`.
 bridge bash "pwd"
 bridge bash "ls -la"
 bridge bash "python3 script.py"
-bridge bash "rg 'pattern' . -g '*.py' -n"    # search with ripgrep
-bridge bash "rg 'pattern' src/ --type py"    # search by file type
-bridge bash "find . -name '*.py'"            # find files by pattern
-bridge bash "<cmd>" --timeout 60             # custom timeout in seconds (default: 120)
+bridge bash "command -v rg fd"                # check tool availability (once per session)
+bridge bash "rg 'pattern' . -g '*.py' -n"     # always prefer rg over grep
+bridge bash "rg 'pattern' src/ --type py"     # rg by file type
+bridge bash "fd -e py"                         # always prefer fd over find
+bridge bash "fd 'test_.*' tests/"              # fd with regex in subdir
+bridge bash "grep -rn 'pattern' src/"         # fallback ONLY if rg unavailable
+bridge bash "find . -name '*.py'"             # fallback ONLY if fd unavailable
+bridge bash "<cmd>" --timeout 60              # custom timeout in seconds (default: 120)
 ```
 
-Output is capped at **1MB**. Scope `rg`/`find` queries (use `-g`, `--type`, or a subdirectory path) to stay under the limit.
+Output is capped at **1MB**. Scope `rg`/`fd` queries (use `-g`, `--type`, `-e`, or a subdirectory path) to stay under the limit.
 
 ---
 
 ## grep
 
 Search file contents on the remote host (wraps ripgrep on the server).
+
+`bridge grep` and `bridge bash "rg ..."` hit the same underlying tool — use whichever fits. Reach for `bridge bash "rg ..."` when you need `rg` flags not exposed by `bridge grep` (e.g. `--multiline`, `--json`, `-A`/`-B` asymmetric context).
 
 ```bash
 bridge grep <pattern>                          # search all files

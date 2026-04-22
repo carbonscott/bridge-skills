@@ -25,7 +25,7 @@ bridge-session start -- ssh <host> 'uv run ~/bridge-server --root-dir /path/to/p
 
 | Command | Purpose |
 |---------|---------|
-| `bridge read <path>` | Read a remote file (line-numbered output) |
+| `bridge read <path>` | Read a remote file (supports `--offset` / `--limit`; line-numbered output) |
 | `bridge write <path> --file <local>` | Upload a local file to remote |
 | `bridge bash "<cmd>"` | Run a shell command on the remote |
 | `bridge grep <pattern>` | Search file contents (like ripgrep) |
@@ -34,6 +34,16 @@ bridge-session start -- ssh <host> 'uv run ~/bridge-server --root-dir /path/to/p
 | `bridge edit <path>` | Open remote file in `$EDITOR`, auto-syncs on save |
 
 For full flags and examples, see [references/commands.md](references/commands.md).
+
+## Reading Large Files
+
+Remote reads land in your context window — a multi-thousand-line file consumed whole wastes context and crowds out reasoning space. Treat `bridge read` like the native Read tool:
+
+- **Locate first, then read narrowly.** Use `bridge grep` or `bridge bash "rg ..."` to find the relevant file and line range, then `bridge read <path> --offset N --limit M` to pull just that window.
+- **Default to `--limit`** when you don't yet know the file's size. `bridge bash "wc -l <path>"` is a cheap pre-check.
+- **Page through, don't slurp.** For exploration, read in chunks (e.g. `--limit 200`) and advance `--offset` as needed rather than re-reading the full file.
+
+Full reads are fine for small files (under ~500 lines) and for the pull-stage-edit-push pattern below, where you need the complete content to write back.
 
 ## Editing Remote Files (Recommended Pattern)
 
@@ -44,7 +54,7 @@ For any non-trivial edit, use a local temp file as a staging area:
 3. **Edit locally** — Apply changes with the Edit tool (normal incremental diffs)
 4. **Push back** — `bridge write <path> --file /tmp/<filename>`
 
-This avoids full rewrites in your head and gives you the full Edit tool experience. Only use `bridge write` with generated content for brand-new files.
+This avoids full rewrites in your head and gives you the full Edit tool experience. Only use `bridge write` with generated content for brand-new files. *(The pull-stage-edit-push pattern intentionally reads the whole file — that's what you're writing back.)*
 
 ## Multiple Sessions
 
@@ -70,14 +80,16 @@ The default session (no `--name` / `--session`) is called `default`. Each sessio
 
 ## When to Use Bridge vs Native Tools
 
-- **Remote files** → always use bridge commands
-- **Local files** → use native Read/Write/Grep/Glob tools
-- Prefer `bridge grep` / `bridge glob` over `bridge bash "rg ..."` / `bridge bash "find ..."` when feasible
-- All paths are **relative to `--root-dir`** set when the session was started
+- **Remote files** → always use bridge commands. **Local files** → use native Read/Write/Grep/Glob tools.
+- **Always prefer `rg` over `grep` and `fd` over `find`** — they're faster, respect `.gitignore`, produce smaller output (important given the 1MB `bash` cap), and have better defaults. This applies whether you use them via `bridge bash "rg ..."` / `bridge bash "fd ..."` or via the built-in wrappers.
+- `bridge grep` is a thin wrapper around ripgrep on the server — use it for convenience, but `bridge bash "rg ..."` is equivalent and gives you full `rg` flags when you need them.
+- `bridge glob` handles glob patterns (e.g. `**/*.py`). For anything beyond simple globs (regex names, type filters, gitignore-aware walks), use `bridge bash "fd ..."`.
+- **Check availability once per session:** `bridge bash "command -v rg fd"`. If either is missing on the remote, fall back to `grep -rn` / `find` and scope the query tightly (subdirectory, `--include`, `-name`).
+- All paths are **relative to `--root-dir`** set when the session was started.
 
 ## Key Gotchas
 
 - `bridge read` output includes **line numbers** (`     1\tline content`) — strip them if you need raw content, or use `bridge bash "cat <path>"`
 - **Text files only** — content passes through JSON; binary files will be mangled
 - `bridge edit` launches `$EDITOR` (default: `vi`) and syncs on each save; editors that fork (e.g. `code` without `--wait`) won't work correctly
-- `bridge bash` output is capped at **1MB**; scope `rg`/`find` queries (use `-g`, `--type`, or a subdirectory path) to avoid hitting the limit
+- `bridge bash` output is capped at **1MB**; scope `rg`/`fd` queries (use `-g`, `--type`, `-e`, or a subdirectory path) to avoid hitting the limit
