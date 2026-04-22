@@ -93,3 +93,4 @@ The default session (no `--name` / `--session`) is called `default`. Each sessio
 - **Text files only** — content passes through JSON; binary files will be mangled
 - `bridge edit` launches `$EDITOR` (default: `vi`) and syncs on each save; editors that fork (e.g. `code` without `--wait`) won't work correctly
 - `bridge bash` output is capped at **1MB**; scope `rg`/`fd` queries (use `-g`, `--type`, `-e`, or a subdirectory path) to avoid hitting the limit
+- **120s subprocess timeout** — `bash`/`grep`/`glob` fail with `command timed out after 120s` by default. Override with `bridge --timeout N <subcommand>` (flag goes before the subcommand, e.g. `bridge --timeout 600 bash "long_cmd"`).

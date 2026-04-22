@@ -62,7 +62,7 @@ bridge bash "fd -e py"                         # always prefer fd over find
 bridge bash "fd 'test_.*' tests/"              # fd with regex in subdir
 bridge bash "grep -rn 'pattern' src/"         # fallback ONLY if rg unavailable
 bridge bash "find . -name '*.py'"             # fallback ONLY if fd unavailable
-bridge bash "<cmd>" --timeout 60              # custom timeout in seconds (default: 120)
+bridge --timeout 600 bash "<cmd>"             # override timeout (global flag, default: 120s)
 ```
 
 Output is capped at **1MB**. Scope `rg`/`fd` queries (use `-g`, `--type`, `-e`, or a subdirectory path) to stay under the limit.
@@ -84,6 +84,7 @@ bridge grep <pattern> --context 3              # show 3 lines of context
 bridge grep <pattern> --mode content           # show matching lines (default)
 bridge grep <pattern> --mode files             # show only file paths
 bridge grep <pattern> --mode count             # show match counts per file
+bridge --timeout 30 grep <pattern>             # override timeout (global flag, default: 120s)
 ```
 
 ---
@@ -96,6 +97,7 @@ Find files by glob pattern on the remote host.
 bridge glob '**/*.py'                          # find all Python files
 bridge glob '*.md' --path docs/                # find markdown files in docs/
 bridge glob 'test_*.py' --path tests/          # find test files
+bridge --timeout 30 glob '**/*.py'             # override timeout (global flag, default: 120s)
 ```
 
 ---
@@ -128,6 +130,25 @@ bridge edit <path> --editor nano       # override $EDITOR
 4. On editor exit: final sync + temp file cleanup
 
 **Limitation:** Editors that fork (e.g. `code` without `--wait`, `subl`) will not work — the editor process exits immediately and the session ends before editing begins.
+
+---
+
+## Global Flags
+
+Flags on the `bridge` command itself, placed **before** the subcommand. Both are optional.
+
+```bash
+bridge --session <name> <subcommand> ...    # target a named session (default: 'default')
+bridge --timeout <N> <subcommand> ...       # subprocess timeout in seconds (default: 120)
+```
+
+`--timeout` applies to `bash`, `grep`, and `glob` (the subcommands that spawn subprocesses on the remote). `read`, `write`, `status`, and `edit` are unaffected.
+
+Behavior on expiry:
+- `bash` returns exit code `-1` with stderr `command timed out after Ns`
+- `grep` / `glob` return an error response
+
+`--session` and `--timeout` compose: `bridge --session myproj --timeout 600 bash "long_cmd"`.
 
 ---
 
