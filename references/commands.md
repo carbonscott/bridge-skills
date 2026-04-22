@@ -8,21 +8,24 @@ All remote paths are relative to `--root-dir` set when the bridge-session was st
 
 ## read
 
-Read a remote file. Output is line-numbered (`     1\tline content`).
+Read a remote file. Output is line-numbered (`     1\tline content`) by default.
 
 ```bash
 bridge read <path>
 bridge read <path> --limit 50          # first 50 lines
 bridge read <path> --offset 100        # start from line 100 (0-based)
 bridge read <path> --offset 100 --limit 50  # lines 100-149
+bridge read <path> --raw               # raw content, no line numbers
+bridge read <path> --raw > local.py    # download — safe to redirect (byte-identical)
+bridge read <path> --raw --offset 500 --limit 100  # raw slice of lines 501-600
 ```
 
-**When to use `--offset` / `--limit`:** large files consume context window space on read. Prefer narrow windows — locate with `bridge grep` or `bridge bash "rg ..."` first, then read just the relevant range (e.g. `--offset 500 --limit 100`). Use `bridge bash "wc -l <path>"` to size up an unknown file.
+**When to use `--offset` / `--limit`:** large files consume context window space on read. Prefer narrow windows — locate with `bridge bash "rg ..."` first, then read just the relevant range (e.g. `--offset 500 --limit 100`). Use `bridge bash "wc -l <path>"` to size up an unknown file.
 
-**To get raw content without line numbers**, use bash instead:
-```bash
-bridge bash "cat <path>"
-```
+**When to use `--raw`:**
+- Downloading a file to local disk via `> local.py` — redirects the raw content without polluting your context window (the tool result only shows the short command outcome).
+- Staging a file for local editing in the pull-stage-edit-push pattern.
+- Pulling a byte-accurate slice by pairing with `--offset`/`--limit` — useful when you need an excerpt without line-number prefixes (e.g. piping into a hash check or another tool).
 
 ---
 
@@ -39,10 +42,9 @@ bridge bash "cat local.py" | bridge write <path>  # pipe through
 **Recommended edit workflow** — use a local temp file to stage edits incrementally, then push once:
 
 ```
-1. bridge read <remote_path>               # read remote content
-2. Write tool → /tmp/<filename>            # save to local temp file
-3. Edit tool → /tmp/<filename>             # apply targeted diffs locally
-4. bridge write <remote_path> --file /tmp/<filename>  # push back
+1. bridge read <remote_path> --raw > /tmp/<filename>   # pull raw content
+2. Edit tool → /tmp/<filename>                         # apply targeted diffs locally
+3. bridge write <remote_path> --file /tmp/<filename>   # push back
 ```
 
 ---
@@ -63,42 +65,10 @@ bridge bash "fd 'test_.*' tests/"              # fd with regex in subdir
 bridge bash "grep -rn 'pattern' src/"         # fallback ONLY if rg unavailable
 bridge bash "find . -name '*.py'"             # fallback ONLY if fd unavailable
 bridge --timeout 600 bash "<cmd>"             # override timeout (global flag, default: 120s)
+bridge --max-output 5000000 bash "<cmd>"      # raise output cap (global flag, default: 1MB)
 ```
 
-Output is capped at **1MB**. Scope `rg`/`fd` queries (use `-g`, `--type`, `-e`, or a subdirectory path) to stay under the limit.
-
----
-
-## grep
-
-Search file contents on the remote host (wraps ripgrep on the server).
-
-`bridge grep` and `bridge bash "rg ..."` hit the same underlying tool — use whichever fits. Reach for `bridge bash "rg ..."` when you need `rg` flags not exposed by `bridge grep` (e.g. `--multiline`, `--json`, `-A`/`-B` asymmetric context).
-
-```bash
-bridge grep <pattern>                          # search all files
-bridge grep <pattern> --path src/              # search in subdirectory
-bridge grep <pattern> --glob '*.py'            # filter by glob
-bridge grep <pattern> --type py                # filter by file type
-bridge grep <pattern> --context 3              # show 3 lines of context
-bridge grep <pattern> --mode content           # show matching lines (default)
-bridge grep <pattern> --mode files             # show only file paths
-bridge grep <pattern> --mode count             # show match counts per file
-bridge --timeout 30 grep <pattern>             # override timeout (global flag, default: 120s)
-```
-
----
-
-## glob
-
-Find files by glob pattern on the remote host.
-
-```bash
-bridge glob '**/*.py'                          # find all Python files
-bridge glob '*.md' --path docs/                # find markdown files in docs/
-bridge glob 'test_*.py' --path tests/          # find test files
-bridge --timeout 30 glob '**/*.py'             # override timeout (global flag, default: 120s)
-```
+Output is capped at **1MB** by default. Scope `rg`/`fd` queries (use `-g`, `--type`, `-e`, or a subdirectory path) to stay under the limit, or raise the cap with `--max-output`.
 
 ---
 
@@ -114,41 +84,22 @@ Returns "Bridge session is active." or exits with an error.
 
 ---
 
-## edit
-
-Open a remote file in `$EDITOR` locally. Auto-syncs to remote on each save. Cleans up temp file on exit.
-
-```bash
-bridge edit <path>
-bridge edit <path> --editor nano       # override $EDITOR
-```
-
-**How it works:**
-1. Pulls raw file content to a local temp file (preserves file extension for syntax highlighting)
-2. Opens `$EDITOR` (default: `vi`) on the temp file
-3. Background thread polls for saves (mtime change) and syncs to remote
-4. On editor exit: final sync + temp file cleanup
-
-**Limitation:** Editors that fork (e.g. `code` without `--wait`, `subl`) will not work — the editor process exits immediately and the session ends before editing begins.
-
----
-
 ## Global Flags
 
-Flags on the `bridge` command itself, placed **before** the subcommand. Both are optional.
+Flags on the `bridge` command itself, placed **before** the subcommand. All optional.
 
 ```bash
-bridge --session <name> <subcommand> ...    # target a named session (default: 'default')
-bridge --timeout <N> <subcommand> ...       # subprocess timeout in seconds (default: 120)
+bridge --session <name> <subcommand> ...     # target a named session (default: 'default')
+bridge --timeout <N> <subcommand> ...        # subprocess timeout in seconds (default: 120)
+bridge --max-output <N> <subcommand> ...     # max output bytes for bash (default: 1000000)
 ```
 
-`--timeout` applies to `bash`, `grep`, and `glob` (the subcommands that spawn subprocesses on the remote). `read`, `write`, `status`, and `edit` are unaffected.
+`--timeout` and `--max-output` only affect `bash` (the only subcommand that spawns a remote subprocess). `read`, `write`, and `status` ignore them.
 
 Behavior on expiry:
 - `bash` returns exit code `-1` with stderr `command timed out after Ns`
-- `grep` / `glob` return an error response
 
-`--session` and `--timeout` compose: `bridge --session myproj --timeout 600 bash "long_cmd"`.
+Flags compose: `bridge --session myproj --timeout 600 --max-output 5000000 bash "long_cmd"`.
 
 ---
 
