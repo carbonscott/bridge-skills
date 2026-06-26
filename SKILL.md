@@ -85,6 +85,12 @@ bridge-session stop project-a
 
 The default session (no `--name` / `--session`) is called `default`. Each session socket lives at `~/.bridge/<name>/session.sock`.
 
+## Anchoring a Project with BRIDGE.md
+
+By default, nothing records how a project maps to a bridge session — which host, which remote `--root-dir` path, which session name — so a fresh agent has to re-derive it. A `BRIDGE.md` in the local project root captures that mapping once, plus a reuse-first reconnect recipe.
+
+Produce a `BRIDGE.md` **only when asked to**, writing it to the local project root. Follow the template and worked example in [references/bridge-md.md](references/bridge-md.md).
+
 ## When to Use Bridge vs Native Tools
 
 - **Remote files** → always use bridge commands. **Local files** → use native Read/Write/Grep/Glob tools.
